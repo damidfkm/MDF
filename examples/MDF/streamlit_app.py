@@ -1,72 +1,67 @@
 import streamlit as st
+import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from modeci_mdf.execution_engine import EvaluableGraph
-from modeci_mdf.mdf import Model, Graph, Node, Parameter, OutputPort
+from modeci_mdf.utils import simple_connect
+from modeci_mdf.mdf import *
 
-def create_biology_model():
-    # Create a model for a simple biology example
-    biology_model = Model(id="BiologyModel")
+# Define the MDF model creation and execution function
+def execute_biology_model():
+    # Create the MDF model
+    mod = Model(id="BiologyModel")
+    mod_graph = Graph(id="biology_example")
+    mod.graphs.append(mod_graph)
 
-    # Create a graph for the biology model
-    biology_graph = Graph(id="biology_example")
-    biology_model.graphs.append(biology_graph)
+    # Create nodes and connect them
+    population_node = Node(id="Population")
+    interaction_node = Node(id="Interaction")
 
-    # Create a node representing a biological entity
-    biological_node = Node(id="BiologicalEntity")
-    biology_graph.nodes.append(biological_node)
+    simple_connect(population_node, interaction_node, mod_graph)
 
-    # Add stateless and stateful parameters to the biological entity node
-    # Stateless parameter
-    increment_parameter = Parameter(id="increment", value=1.0)
-    biological_node.parameters.append(increment_parameter)
+    # Set parameters for nodes
+    population_growth_rate = Parameter(id="growth_rate", value=0.1)
+    interaction_rate = Parameter(id="interaction_rate", value=0.05)
 
-    # Stateful parameter
-    count_parameter = Parameter(id="count", value="count + increment")
-    biological_node.parameters.append(count_parameter)
+    population_node.parameters.append(population_growth_rate)
+    interaction_node.parameters.append(interaction_rate)
 
-    # Add an output port for the biological entity node
-    output_port = OutputPort(id="output", value="count")
-    biological_node.output_ports.append(output_port)
+    # Set conditions for nodes
+    population_condition = Condition(type="Always")
+    interaction_condition = Condition(type="EveryNCalls", dependencies=population_node.id, n=5)
+    mod_graph.conditions = ConditionSet(
+        node_specific={population_node.id: population_condition, interaction_node.id: interaction_condition}
+    )
 
-    return biology_model
-
-def execute_model(model):
     # Execute the graph
-    eg = EvaluableGraph(model.graphs[0], verbose=False)
+    eg = EvaluableGraph(mod_graph, verbose=False)
     eg.evaluate()
-    return eg.enodes["BiologicalEntity"].evaluable_outputs["output"].curr_value
+
+    # Get output values
+    population_size = eg.enodes["Population"].evaluable_outputs["population_size"].curr_value
+    predator_size = eg.enodes["Interaction"].evaluable_outputs["predator_size"].curr_value
+
+    return population_size, predator_size
 
 
-
-def plot_output(output_values, time_points):
-    # Create a DataFrame with output_values and time_points
-    df = pd.DataFrame({
-        'Time Points': time_points,
-        'Output Values': output_values
-    })
-
-    # Plot the DataFrame using st.line_chart()
-    st.line_chart(df)
-
+# Create Streamlit app
 def main():
     st.title("Simple Biology Model Execution")
 
-    # Create a button to execute the model
+    # Execute the model when button is clicked
     if st.button("Execute Model"):
         st.write("Executing model...")
+        population_size, predator_size = execute_biology_model()
 
-        # Create and execute the model
-        model = create_biology_model()
-        output_value = execute_model(model)
+        # Plot the output
+        plt.figure(figsize=(10, 5))
+        plt.plot(population_size, label="Population Size")
+        plt.plot(predator_size, label="Predator Size")
+        plt.xlabel("Time")
+        plt.ylabel("Size")
+        plt.title("Population and Predator Size Over Time")
+        plt.legend()
+        st.pyplot(plt)
 
-        # Display the output value
-        st.write("Output:", output_value)
-
-        # Optionally, plot the output at multiple time points
-        time_points = np.linspace(0, 10, 11)  # Example time points
-        output_values = [execute_model(model) for _ in time_points]
-        plot_output(output_values, time_points)
-
+# Run the app
 if __name__ == "__main__":
     main()
