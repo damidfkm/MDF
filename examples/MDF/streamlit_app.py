@@ -1,8 +1,8 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 from modeci_mdf.execution_engine import EvaluableGraph
 from modeci_mdf.mdf import Model, Graph, Node, Parameter, OutputPort
-
 
 def create_biology_model():
     # Create a model for a simple biology example
@@ -31,13 +31,23 @@ def create_biology_model():
 
     return biology_model
 
-
 def execute_model(model):
     # Execute the graph
     eg = EvaluableGraph(model.graphs[0], verbose=False)
     eg.evaluate()
     return eg.enodes["BiologicalEntity"].evaluable_outputs["output"].curr_value
 
+
+
+def plot_output(output_values, time_points):
+    # Create a DataFrame with output_values and time_points
+    df = pd.DataFrame({
+        'Time Points': time_points,
+        'Output Values': output_values
+    })
+
+    # Plot the DataFrame using st.line_chart()
+    st.line_chart(df)
 
 def main():
     st.title("Simple Biology Model Execution")
@@ -56,8 +66,7 @@ def main():
         # Optionally, plot the output at multiple time points
         time_points = np.linspace(0, 10, 11)  # Example time points
         output_values = [execute_model(model) for _ in time_points]
-        st.line_chart(output_values, time_points)
-
+        plot_output(output_values, time_points)
 
 if __name__ == "__main__":
     main()
